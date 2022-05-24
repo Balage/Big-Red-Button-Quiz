@@ -24,14 +24,13 @@ namespace BigRedButtonQuiz
         }
     }
 
-    public class BigRedButtonControllerSerial
+    public class BigRedButtonSerialPort
     {
         private readonly SerialPort _port;
 
         public event EventHandler<ButtonStateChangedEventArgs> StateChanged;
-        public event EventHandler Disconnected;
 
-        public BigRedButtonControllerSerial()
+        public BigRedButtonSerialPort()
         {
             _port = new SerialPort
             {
@@ -46,9 +45,12 @@ namespace BigRedButtonQuiz
         }
 
         public bool IsOpen => _port.IsOpen;
+        public string PortName => _port.IsOpen ? _port.PortName : null;
 
         public void Connect(string portName)
         {
+            _port.DataReceived -= DataReceived;
+
             if (!SerialPort.GetPortNames().Contains(portName))
             {
                 throw new ArgumentException("Port is not available");
@@ -133,6 +135,7 @@ namespace BigRedButtonQuiz
         {
             if (!_port.IsOpen) throw new Exception("Port is closed.");
             _port.DataReceived -= DataReceived;
+            while (_port.BytesToRead > 0) _port.ReadByte(); // Clear input buffer
             _port.WriteLine(text);
             var binaryData = ReadLine(timeout, giveUpOnStart);
             _port.DataReceived += DataReceived;
@@ -142,6 +145,7 @@ namespace BigRedButtonQuiz
         private void WriteLine(string text)
         {
             if (!_port.IsOpen) throw new Exception("Port is closed.");
+            while (_port.BytesToRead > 0) _port.ReadByte(); // Clear input buffer
             _port.WriteLine(text);
         }
 

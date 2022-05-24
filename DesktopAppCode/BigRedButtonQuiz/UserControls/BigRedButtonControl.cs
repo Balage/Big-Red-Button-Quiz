@@ -23,21 +23,19 @@ namespace BigRedButtonQuiz.UserControls
         public string PlayerName => PlayerNameTextBox.Text.Trim();
 
         public event EventHandler<ButtonPressEventArgs> ButtonPress;
-        public event EventHandler Connected; // TODO: Wire this up
-        public event EventHandler Disconnected; // TODO: Wire this up
 
-        private BigRedButtonControllerSerial _serial;
+        private readonly BigRedButtonSerialPort _serial;
 
         public BigRedButtonControl(int index)
         {
             InitializeComponent();
 
             ButtonIndex = index;
-            _serial = new BigRedButtonControllerSerial();
+            _serial = new BigRedButtonSerialPort();
             RefreshPortList();
-            StatusLabel.Text = "Not connected";
             IndexLabel.Text = $"#{index + 1}";
             PlayerNameTextBox.Text = $"Player #{index + 1}";
+            StatusLabel.Text = "Not connected";
         }
 
         public void RefreshPortList()
@@ -45,11 +43,16 @@ namespace BigRedButtonQuiz.UserControls
             SerialPortList.Items.Clear();
             SerialPortList.Items.Add("Select");
             SerialPortList.Items.AddRange(SerialPort.GetPortNames());
-            SerialPortList.SelectedIndex = 0;
+            SerialPortList.SelectedIndex = Math.Max(0, SerialPortList.Items.IndexOf(_serial.PortName ?? ""));
         }
 
-        public void SetLED(bool on)
+        public void SetLight(bool on)
         {
+            if (!_serial.IsOpen)
+            {
+                ResetControl();
+                return;
+            }
             _serial.SetLight(on);
         }
 
@@ -57,8 +60,18 @@ namespace BigRedButtonQuiz.UserControls
 
         private void UpdateStateLabel(bool buttonDown)
         {
-            StatusLabel.BackColor = buttonDown ? Color.FromArgb(255, 0, 0) : Color.FromArgb(128, 128, 128);
             StatusLabel.ForeColor = Color.FromArgb(255, 255, 255);
+            StatusLabel.BackColor = buttonDown ? Color.FromArgb(255, 0, 0) : Color.FromArgb(128, 128, 128);
+        }
+
+        private void ResetControl()
+        {
+            _serial.StateChanged -= ButtonStateChangedEvent;
+            StatusLabel.ForeColor = SystemColors.ControlText;
+            StatusLabel.BackColor = SystemColors.Control;
+            StatusLabel.Text = "Not connected";
+            TestButton.Enabled = false;
+            SerialPortList.SelectedIndex = 0;
         }
 
         private void SerialPortList_SelectedIndexChanged(object sender, EventArgs e)
@@ -67,6 +80,8 @@ namespace BigRedButtonQuiz.UserControls
                 return;
 
             var port = (string)SerialPortList.SelectedItem;
+            if (port == _serial.PortName)
+                return;
 
             try
             {
@@ -78,7 +93,8 @@ namespace BigRedButtonQuiz.UserControls
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Failed to connect to port {port}: {ex.Message}");
+                ResetControl();
+                MessageBox.Show($"Failed to connect to port {port}: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
             }
         }
 
@@ -97,18 +113,12 @@ namespace BigRedButtonQuiz.UserControls
 
         private void TestButton_MouseDown(object sender, MouseEventArgs e)
         {
-            if (_serial.IsOpen)
-            {
-                _serial.SetLight(true);
-            }
+            SetLight(true);
         }
 
         private void TestButton_MouseUp(object sender, MouseEventArgs e)
         {
-            if (_serial.IsOpen)
-            {
-                _serial.SetLight(false);
-            }
+            SetLight(false);
         }
     }
 }
