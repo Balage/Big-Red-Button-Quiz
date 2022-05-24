@@ -1,18 +1,17 @@
-﻿using System;
+﻿using NAudio.Wave;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
-using NAudio.Wave;
 
-namespace BigRedButtonQuiz
+namespace BigRedButtonQuiz.Forms
 {
-    public partial class MainForm : Form
+    public partial class GameForm : Form
     {
-        private readonly List<UserControls.BigRedButtonControl> _buttons = new List<UserControls.BigRedButtonControl>();
+        private readonly IReadOnlyList<UserControls.BigRedButtonControl> _buttons;
+        
         private readonly WaveOutEvent _soundDevice;
-
         private readonly AudioFileReader _sndMainTheme = new AudioFileReader(@".\\audio\\main_theme.mp3");
-        private readonly AudioFileReader _sndWinSmall = new AudioFileReader(@".\\audio\\win_small.mp3");
         private readonly AudioFileReader[] _sndWinMedium = new AudioFileReader[2]
         {
             new AudioFileReader(@".\\audio\\win_medium_1.mp3"),
@@ -51,30 +50,73 @@ namespace BigRedButtonQuiz
         }
         private RoundStateEnum _roundState = RoundStateEnum.Prepare;
 
-        public MainForm()
+        public GameForm(IReadOnlyList<UserControls.BigRedButtonControl> buttons)
         {
             InitializeComponent();
-            UpdateRoundState(RoundStateEnum.Prepare);
+
+            const int padding = 30;
+            ClientSize = new Size(
+                MainPanel.ClientSize.Width + padding * 2,
+                MainPanel.ClientSize.Height + padding * 2
+            );
+            MinimumSize = Size;
+            MainPanel.Location = new Point(padding, padding);
 
             _soundDevice = new WaveOutEvent();
-
-            for (int i = 0; i < 8; i++)
+            _buttons = buttons;
+            foreach (var button in buttons)
             {
-                var button = new UserControls.BigRedButtonControl(i)
+                if (button.IsActive)
                 {
-                    Location = new System.Drawing.Point(8, 20 + i * 30)
-                };
-                button.ButtonPress += ButtonPressEvent;
-                _buttons.Add(button);
-                PlayersGroup.Controls.Add(button);
+                    button.ButtonPress += ButtonPressEvent;
+                    button.ButtonDisconnected += ButtonDisconnectedEvent;
+                }
             }
         }
 
-        private void RefreshPortsButton_Click(object sender, EventArgs e)
+        private void ButtonDisconnectedEvent(object sender, UserControls.BigRedButtonControl.ButtonEventArgs e)
+        {
+            MessageBox.Show($"The button for {e.PlayerName} has been disconnected!", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+
+        private void GameForm_FormClosed(object sender, FormClosedEventArgs e)
         {
             foreach (var button in _buttons)
             {
-                button.RefreshPortList();
+                button.ButtonPress -= ButtonPressEvent;
+                button.ButtonDisconnected -= ButtonDisconnectedEvent;
+            }
+
+            _soundDevice.PlaybackStopped -= _outputDevice_PlaybackStopped;
+            _soundDevice.Stop();
+            _soundDevice.Dispose();
+
+            _sndMainTheme.Dispose();
+            _sndWinMedium[0].Dispose();
+            _sndWinMedium[1].Dispose();
+            _sndWinBig[0].Dispose();
+            _sndWinBig[1].Dispose();
+            _sndLoseSmall.Dispose();
+            _sndLoseBig.Dispose();
+            _sndMark.Dispose();
+            _sndNext[0].Dispose();
+            _sndNext[1].Dispose();
+            _sndBackFast.Dispose();
+            _sndBackSlow[0].Dispose();
+            _sndBackSlow[1].Dispose();
+        }
+
+        private void ButtonPressEvent(object sender, UserControls.BigRedButtonControl.ButtonEventArgs e)
+        {
+            if (_roundState == RoundStateEnum.Active)
+            {
+                _soundDevice.PlaybackStopped -= _outputDevice_PlaybackStopped;
+                PlayAudio(_sndMark);
+
+                UpdateRoundState(RoundStateEnum.ButtonPressed);
+                _buttons[e.ButtonIndex].SetLight(true);
+                RoundResultLabel.Text = $"{e.PlayerName}\nhas\npressed the button!";
+                _lastPlayerIndex = e.ButtonIndex;
             }
         }
 
@@ -123,20 +165,6 @@ namespace BigRedButtonQuiz
             }
         }
 
-        private void ButtonPressEvent(object sender, UserControls.BigRedButtonControl.ButtonPressEventArgs e)
-        {
-            if (_roundState == RoundStateEnum.Active)
-            {
-                _soundDevice.PlaybackStopped -= _outputDevice_PlaybackStopped;
-                PlayAudio(_sndMark);
-
-                UpdateRoundState(RoundStateEnum.ButtonPressed);
-                _buttons[e.ButtonIndex].SetLight(true);
-                RoundResultLabel.Text = $"{e.PlayerName}\nhas pressed\nthe button!";
-                _lastPlayerIndex = e.ButtonIndex;
-            }
-        }
-
         private void UpdateRoundState(RoundStateEnum state)
         {
             _roundState = state;
@@ -145,7 +173,7 @@ namespace BigRedButtonQuiz
                 case RoundStateEnum.Prepare:
                     RoundResultLabel.Text = "Prepare the buttons...";
                     break;
-                
+
                 case RoundStateEnum.Active:
                     RoundResultLabel.Text = "Ready your buttons!";
                     break;
@@ -175,13 +203,18 @@ namespace BigRedButtonQuiz
             PlayAudio(_sndMainTheme);
         }
 
+        private void StopAudioButton_Click(object sender, EventArgs e)
+        {
+            _soundDevice.Stop();
+        }
+
         private void CorrectButton_Click(object sender, EventArgs e)
         {
             PlayAudio(HighStakeCheckBox.Checked
                 ? _sndWinBig[_random.Next(2)]
                 : _sndWinMedium[_random.Next(2)]
             );
-            RoundResultLabel.Text = $"{_buttons[_lastPlayerIndex].PlayerName}\nhas answered\nCORRECT!";
+            RoundResultLabel.Text = $"{_buttons[_lastPlayerIndex].PlayerName}\nis\nCORRECT!";
             RoundResultLabel.BackColor = Color.FromArgb(192, 255, 192);
             UpdateRoundState(RoundStateEnum.Result);
         }
@@ -192,14 +225,9 @@ namespace BigRedButtonQuiz
                 ? _sndLoseBig
                 : _sndLoseSmall
             );
-            RoundResultLabel.Text = $"{_buttons[_lastPlayerIndex].PlayerName}\nhas answered\nWRONG!";
+            RoundResultLabel.Text = $"{_buttons[_lastPlayerIndex].PlayerName}\nis\nWRONG!";
             RoundResultLabel.BackColor = Color.FromArgb(255, 192, 192);
             UpdateRoundState(RoundStateEnum.Result);
-        }
-
-        private void StopAudioButton_Click(object sender, EventArgs e)
-        {
-            _soundDevice.Stop();
         }
     }
 }

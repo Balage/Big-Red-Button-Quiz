@@ -7,12 +7,12 @@ namespace BigRedButtonQuiz.UserControls
 {
     public partial class BigRedButtonControl : UserControl
     {
-        public class ButtonPressEventArgs : EventArgs
+        public class ButtonEventArgs : EventArgs
         {
             public int ButtonIndex { get; }
             public string PlayerName { get; }
 
-            public ButtonPressEventArgs(int buttonIndex, string playerName)
+            public ButtonEventArgs(int buttonIndex, string playerName)
             {
                 ButtonIndex = buttonIndex;
                 PlayerName = playerName;
@@ -22,7 +22,8 @@ namespace BigRedButtonQuiz.UserControls
         public int ButtonIndex { get; }
         public string PlayerName => PlayerNameTextBox.Text.Trim();
 
-        public event EventHandler<ButtonPressEventArgs> ButtonPress;
+        public event EventHandler<ButtonEventArgs> ButtonPress;
+        public event EventHandler<ButtonEventArgs> ButtonDisconnected;
 
         private readonly BigRedButtonSerialPort _serial;
 
@@ -51,6 +52,7 @@ namespace BigRedButtonQuiz.UserControls
             if (!_serial.IsOpen)
             {
                 ResetControl();
+                ButtonDisconnected?.Invoke(this, new ButtonEventArgs(ButtonIndex, PlayerName));
                 return;
             }
             _serial.SetLight(on);
@@ -107,7 +109,7 @@ namespace BigRedButtonQuiz.UserControls
             if (e.ButtonState == BigRedButtonState.ButtonDown)
             {
                 UpdateStateLabel(true);
-                ButtonPress?.Invoke(this, new ButtonPressEventArgs(ButtonIndex, PlayerName));
+                ButtonPress?.Invoke(this, new ButtonEventArgs(ButtonIndex, PlayerName));
             }
         }
 
