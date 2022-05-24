@@ -38,6 +38,7 @@ void loop()
             if (result.equals("**BRBQ*I"))
             {
                 _connected = true;
+                _lightState = false;
                 Serial.print("ACK\n");
             }
             else
