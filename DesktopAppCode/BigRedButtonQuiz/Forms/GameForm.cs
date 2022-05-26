@@ -50,6 +50,10 @@ namespace BigRedButtonQuiz.Forms
         }
         private RoundStateEnum _roundState = RoundStateEnum.Prepare;
 
+        private readonly QuizParser _quizParser;
+        private readonly List<QuestionAnswer> _quizQuestionsAndAnsers;
+        private int _quizStep = 0;
+
         public GameForm(IReadOnlyList<UserControls.BigRedButtonControl> buttons)
         {
             InitializeComponent();
@@ -72,6 +76,9 @@ namespace BigRedButtonQuiz.Forms
                     button.ButtonDisconnected += ButtonDisconnectedEvent;
                 }
             }
+
+            _quizParser = new QuizParser(@"quizQuestions.txt");
+            _quizQuestionsAndAnsers = _quizParser.Parse();
         }
 
         private void ButtonDisconnectedEvent(object sender, UserControls.BigRedButtonControl.ButtonEventArgs e)
@@ -115,7 +122,7 @@ namespace BigRedButtonQuiz.Forms
 
                 UpdateRoundState(RoundStateEnum.ButtonPressed);
                 _buttons[e.ButtonIndex].SetLight(true);
-                RoundResultLabel.Text = $"{e.PlayerName}\nhas\npressed the button!";
+                RoundResultLabel.Text = $"{e.PlayerName}\nhas pressed the button!";
                 _lastPlayerIndex = e.ButtonIndex;
             }
         }
@@ -143,6 +150,14 @@ namespace BigRedButtonQuiz.Forms
                 }
                 else
                 {
+                    // Update questions
+                    if (_quizStep < _quizQuestionsAndAnsers.Count)
+                    {
+                        QuestionLabel.Text = _quizQuestionsAndAnsers[_quizStep].Question;
+                        _quizStep++;
+                    }
+
+                    // Update button state
                     UpdateRoundState(RoundStateEnum.Active);
                     _slowBackIndex = _random.Next(2);
                     PlayAudio(_sndNext[_random.Next(2)], true);
@@ -185,8 +200,9 @@ namespace BigRedButtonQuiz.Forms
 
             if (state != RoundStateEnum.Result)
             {
-                RoundResultLabel.BackColor = SystemColors.Window;
+                RoundResultLabel.BackColor = state == RoundStateEnum.ButtonPressed ? SystemColors.Window : SystemColors.Control;
             }
+            NewRoundButton.Text = state == RoundStateEnum.ButtonPressed ? "&UNDO PRESS" : "&NEW ROUND";
         }
 
         private void PlayAudio(AudioFileReader audio, bool bindStopEvent = false)
@@ -214,7 +230,7 @@ namespace BigRedButtonQuiz.Forms
                 ? _sndWinBig[_random.Next(2)]
                 : _sndWinMedium[_random.Next(2)]
             );
-            RoundResultLabel.Text = $"{_buttons[_lastPlayerIndex].PlayerName}\nis\nCORRECT!";
+            RoundResultLabel.Text = $"{_buttons[_lastPlayerIndex].PlayerName}\nis CORRECT!";
             RoundResultLabel.BackColor = Color.FromArgb(192, 255, 192);
             UpdateRoundState(RoundStateEnum.Result);
         }
@@ -225,7 +241,7 @@ namespace BigRedButtonQuiz.Forms
                 ? _sndLoseBig
                 : _sndLoseSmall
             );
-            RoundResultLabel.Text = $"{_buttons[_lastPlayerIndex].PlayerName}\nis\nWRONG!";
+            RoundResultLabel.Text = $"{_buttons[_lastPlayerIndex].PlayerName}\nis WRONG!";
             RoundResultLabel.BackColor = Color.FromArgb(255, 192, 192);
             UpdateRoundState(RoundStateEnum.Result);
         }

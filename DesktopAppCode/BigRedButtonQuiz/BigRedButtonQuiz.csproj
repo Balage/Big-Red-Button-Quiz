@@ -94,6 +94,8 @@
     </Compile>
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="QuestionAnswer.cs" />
+    <Compile Include="QuizParser.cs" />
     <Compile Include="UserControls\BigRedButtonControl.cs">
       <SubType>UserControl</SubType>
     </Compile>
